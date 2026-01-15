@@ -40,6 +40,10 @@ python manage.py seed_countries
 python manage.py runserver 0.0.0.0:8000
 ```
 
+## Static Files in Production
+
+The production stack runs `collectstatic` on startup so built assets (like `frontend/static/css/styles.css`) are available under `STATIC_ROOT` at `/static/`. If you use a reverse proxy (Nginx, etc.), configure it to serve `/static/` from the built static directory (`frontend/static`) or from `STATIC_ROOT` when `DEBUG=false`.
+
 ## Environment Variables
 
 - `DJANGO_SECRET_KEY`
