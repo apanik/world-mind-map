@@ -104,7 +104,9 @@ function searchForCountry(value) {
         return;
     }
     const normalized = query.toLowerCase();
-    let code = countryIndex[normalized];
+    const codeMatch = query.match(/\(([^)]+)\)\s*$/);
+    const explicitCode = codeMatch ? codeMatch[1].trim().toLowerCase() : null;
+    let code = explicitCode ? countryIndex[explicitCode] : countryIndex[normalized];
     if (!code) {
         const match = countriesList.find((country) =>
             country.name.toLowerCase().includes(normalized),
