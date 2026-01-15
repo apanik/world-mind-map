@@ -1,0 +1,36 @@
+<div class="panel-content">
+    <h2>{{ country.name }} ({{ country.code }})</h2>
+    {% if snapshot %}
+        <div class="panel-emoji">{{ snapshot.emoji }} <span>{{ snapshot.label }}</span></div>
+        <div class="panel-metrics">
+            <div><strong>Mood score:</strong> {{ snapshot.mood_score|floatformat:2 }}</div>
+            <div><strong>Energy score:</strong> {{ snapshot.energy|floatformat:2 }}</div>
+            <div><strong>Confidence:</strong> {{ snapshot.confidence }}</div>
+            <div><strong>Samples:</strong> {{ snapshot.n_items }}</div>
+        </div>
+        <h3>Emotion Probabilities</h3>
+        <ul>
+            {% for key, value in snapshot.emotion_probs.items %}
+            <li>{{ key|capfirst }}: {{ value|floatformat:2 }}</li>
+            {% endfor %}
+        </ul>
+        <h3>Top Drivers</h3>
+        <ul>
+            {% for driver in drivers %}
+            <li>{{ driver.topic }} ({{ driver.n_items }})</li>
+            {% empty %}
+            <li>No drivers available.</li>
+            {% endfor %}
+        </ul>
+        <h3>Example Snippets</h3>
+        <ul>
+            {% for sample in samples %}
+            <li>{{ sample.text }}</li>
+            {% empty %}
+            <li>No samples available.</li>
+            {% endfor %}
+        </ul>
+    {% else %}
+        <p>No snapshot available yet. Please run the refresh jobs.</p>
+    {% endif %}
+</div>

@@ -1,0 +1,84 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: moodclock
+      POSTGRES_USER: moodclock
+      POSTGRES_PASSWORD: moodclock
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+
+  web:
+    build: .
+    command: bash -c "python manage.py migrate && python manage.py collectstatic --noinput && python manage.py seed_countries && gunicorn moodclock.asgi:application -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000"
+    volumes:
+      - .:/app
+    ports:
+      - "8000:8000"
+    environment:
+      DJANGO_SECRET_KEY: dev-secret
+      DEBUG: "true"
+      ALLOWED_HOSTS: "*"
+      DATABASE_URL: postgres://moodclock:moodclock@db:5432/moodclock
+      REDIS_URL: redis://redis:6379/0
+      GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY}
+      PROVIDER: ${PROVIDER:-mock}
+      X_BEARER_TOKEN: ${X_BEARER_TOKEN}
+      REDDIT_CLIENT_ID: ${REDDIT_CLIENT_ID}
+      REDDIT_CLIENT_SECRET: ${REDDIT_CLIENT_SECRET}
+      REDDIT_USER_AGENT: ${REDDIT_USER_AGENT:-global-mood-clock}
+    depends_on:
+      - db
+      - redis
+
+  worker:
+    build: .
+    command: celery -A moodclock worker -l info
+    volumes:
+      - .:/app
+    environment:
+      DJANGO_SECRET_KEY: dev-secret
+      DEBUG: "false"
+      ALLOWED_HOSTS: "*"
+      DATABASE_URL: postgres://moodclock:moodclock@db:5432/moodclock
+      REDIS_URL: redis://redis:6379/0
+      PROVIDER: ${PROVIDER:-mock}
+      X_BEARER_TOKEN: ${X_BEARER_TOKEN}
+      REDDIT_CLIENT_ID: ${REDDIT_CLIENT_ID}
+      REDDIT_CLIENT_SECRET: ${REDDIT_CLIENT_SECRET}
+      REDDIT_USER_AGENT: ${REDDIT_USER_AGENT:-global-mood-clock}
+    depends_on:
+      - db
+      - redis
+
+  beat:
+    build: .
+    command: celery -A moodclock beat -l info
+    volumes:
+      - .:/app
+    environment:
+      DJANGO_SECRET_KEY: dev-secret
+      DEBUG: "false"
+      ALLOWED_HOSTS: "*"
+      DATABASE_URL: postgres://moodclock:moodclock@db:5432/moodclock
+      REDIS_URL: redis://redis:6379/0
+      PROVIDER: ${PROVIDER:-mock}
+      X_BEARER_TOKEN: ${X_BEARER_TOKEN}
+      REDDIT_CLIENT_ID: ${REDDIT_CLIENT_ID}
+      REDDIT_CLIENT_SECRET: ${REDDIT_CLIENT_SECRET}
+      REDDIT_USER_AGENT: ${REDDIT_USER_AGENT:-global-mood-clock}
+    depends_on:
+      - db
+      - redis
+
+volumes:
+  postgres_data:

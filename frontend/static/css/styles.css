@@ -1,0 +1,50 @@
+body {
+    font-family: "Segoe UI", sans-serif;
+    margin: 0;
+    background: #f4f7fb;
+    color: #1b2b3a;
+}
+
+.banner {
+    background: #ffcf5c;
+    color: #3b2f00;
+    padding: 8px 16px;
+    text-align: center;
+    font-weight: 600;
+}
+
+.app-header {
+    padding: 16px 24px;
+    background: #0b1d2a;
+    color: #fff;
+}
+
+.layout {
+    display: flex;
+    height: calc(100vh - 112px);
+}
+
+.map {
+    flex: 2;
+}
+
+.panel {
+    flex: 1;
+    background: #fff;
+    padding: 24px;
+    overflow-y: auto;
+    border-left: 1px solid #e1e7ef;
+}
+
+.panel-emoji {
+    font-size: 32px;
+    margin-bottom: 12px;
+}
+
+.panel-content h3 {
+    margin-top: 20px;
+}
+
+.panel-placeholder {
+    color: #607086;
+}
