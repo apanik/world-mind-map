@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Global Mood Clock</title>
+    <link rel="stylesheet" href="/static/css/styles.css" />
+    <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+</head>
+<body>
+    {% if demo_mode %}
+    <div class="banner">Demo Mode: Using mock data sources.</div>
+    {% endif %}
+    <header class="app-header">
+        <h1>Global Mood Clock</h1>
+        <p>Real-time world mood map powered by public discussion signals.</p>
+    </header>
+    {% block content %}{% endblock %}
+</body>
+</html>
