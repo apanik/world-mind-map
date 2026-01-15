@@ -8,5 +8,4 @@ def settings_flags(request):
     return {
         "demo_mode": demo_mode,
         "enable_threejs": settings.ENABLE_THREEJS,
-        "google_maps_api_key": settings.GOOGLE_MAPS_API_KEY,
     }

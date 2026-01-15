@@ -24,8 +24,13 @@ body {
     height: calc(100vh - 112px);
 }
 
-.map {
+.map-wrapper {
     flex: 2;
+    position: relative;
+}
+
+.map {
+    height: 100%;
 }
 
 .panel {
@@ -47,4 +52,63 @@ body {
 
 .panel-placeholder {
     color: #607086;
+}
+
+.map-controls {
+    position: absolute;
+    top: 16px;
+    left: 16px;
+    background: rgba(255, 255, 255, 0.95);
+    padding: 12px 14px;
+    border-radius: 10px;
+    box-shadow: 0 8px 20px rgba(15, 23, 42, 0.15);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 260px;
+    z-index: 1000;
+}
+
+.map-controls label {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #54667a;
+    font-weight: 600;
+}
+
+.map-controls-row {
+    display: flex;
+    gap: 8px;
+}
+
+.map-controls input {
+    flex: 1;
+    border: 1px solid #d6dee8;
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-size: 14px;
+}
+
+.map-controls button {
+    background: #1c4ed8;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.map-controls button:hover {
+    background: #1e40af;
+}
+
+.emoji-marker {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    width: 24px;
+    height: 24px;
 }

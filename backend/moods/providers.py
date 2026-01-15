@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import dataclasses
+import html
 import logging
 import random
+import re
 from typing import Protocol
 
 import requests
@@ -101,6 +103,61 @@ class XProvider:
             return []
 
 
+class ScrapeXProvider:
+    SEARCH_URLS = (
+        "https://r.jina.ai/http://x.com/search?q={query}&f=live",
+        "https://r.jina.ai/http://nitter.net/search?f=tweets&q={query}",
+    )
+
+    def _fetch_search(self, query: str) -> list[str]:
+        for url in self.SEARCH_URLS:
+            try:
+                response = requests.get(
+                    url.format(query=requests.utils.quote(query)),
+                    headers={"User-Agent": "global-mood-clock"},
+                    timeout=10,
+                )
+                if response.status_code == 451:
+                    logger.warning("X scrape unavailable (451); trying fallback source.")
+                    continue
+                if response.status_code >= 400:
+                    logger.warning("X scrape error: %s", response.status_code)
+                    continue
+                posts = self._extract_posts(response.text)
+                if posts:
+                    return posts
+            except requests.RequestException as exc:
+                logger.exception("X scrape request failed: %s", exc)
+        return []
+
+    def _extract_posts(self, payload: str) -> list[str]:
+        matches = re.findall(r'data-testid="tweetText".*?</div>', payload, re.DOTALL)
+        if not matches:
+            matches = re.findall(r'class="tweet-content[^"]*".*?</div>', payload, re.DOTALL)
+        texts = []
+        for block in matches:
+            cleaned = re.sub(r"<[^>]+>", " ", block)
+            cleaned = html.unescape(cleaned)
+            cleaned = re.sub(r"\s+", " ", cleaned).strip()
+            if cleaned:
+                texts.append(cleaned)
+        return texts
+
+    def get_trends(self, country: str) -> list[TrendTopic]:
+        posts = self._fetch_search(country)
+        hashtags: list[str] = []
+        for post in posts:
+            hashtags.extend(re.findall(r"#\\w+", post))
+        unique_tags = list(dict.fromkeys(tag.lstrip("#") for tag in hashtags if tag))
+        if not unique_tags:
+            return [TrendTopic(topic=country, weight=1.0)]
+        return [TrendTopic(topic=tag, weight=1.0) for tag in unique_tags[:5]]
+
+    def sample_posts(self, country: str, topic: str, limit: int) -> list[str]:
+        posts = self._fetch_search(topic or country)
+        return posts[:limit]
+
+
 class RedditProvider:
     BASE_URL = "https://oauth.reddit.com"
     TOKEN_URL = "https://www.reddit.com/api/v1/access_token"
@@ -181,6 +238,61 @@ class RedditProvider:
             return []
 
 
+class PublicRedditProvider:
+    BASE_URL = "https://www.reddit.com"
+
+    def __init__(self, user_agent: str) -> None:
+        self.user_agent = user_agent
+
+    def _headers(self) -> dict[str, str]:
+        return {"User-Agent": self.user_agent}
+
+    def get_trends(self, country: str) -> list[TrendTopic]:
+        subreddits = [f"{country.lower()}news", f"{country.lower()}"]
+        topics: list[TrendTopic] = []
+        for subreddit in subreddits:
+            try:
+                response = requests.get(
+                    f"{self.BASE_URL}/r/{subreddit}/hot.json",
+                    headers=self._headers(),
+                    params={"limit": 5},
+                    timeout=10,
+                )
+                if response.status_code >= 400:
+                    continue
+                children = response.json().get("data", {}).get("children", [])
+                for item in children:
+                    title = item.get("data", {}).get("title")
+                    if title:
+                        topics.append(TrendTopic(topic=title, weight=1.0))
+            except requests.RequestException:
+                continue
+        return topics
+
+    def sample_posts(self, country: str, topic: str, limit: int) -> list[str]:
+        try:
+            response = requests.get(
+                f"{self.BASE_URL}/search.json",
+                headers=self._headers(),
+                params={"q": topic, "limit": min(limit, 100), "sort": "hot"},
+                timeout=10,
+            )
+            if response.status_code >= 400:
+                return []
+            children = response.json().get("data", {}).get("children", [])
+            texts = []
+            for item in children:
+                data = item.get("data", {})
+                title = data.get("title") or ""
+                selftext = data.get("selftext") or ""
+                combined = f"{title} {selftext}".strip()
+                if combined:
+                    texts.append(combined)
+            return texts
+        except requests.RequestException:
+            return []
+
+
 class CompositeProvider:
     def __init__(self, x_provider: TrendProvider, reddit_provider: TrendProvider) -> None:
         self.x_provider = x_provider
@@ -240,17 +352,20 @@ def provider_from_settings() -> TrendProvider:
     provider = settings.PROVIDER
     if provider == "x":
         if not settings.X_BEARER_TOKEN:
-            return MockProvider()
+            return ScrapeXProvider()
         return XProvider(settings.X_BEARER_TOKEN)
     if provider == "reddit":
         if not settings.REDDIT_CLIENT_ID or not settings.REDDIT_CLIENT_SECRET:
-            return MockProvider()
+            return PublicRedditProvider(settings.REDDIT_USER_AGENT)
         return RedditProvider(settings.REDDIT_CLIENT_ID, settings.REDDIT_CLIENT_SECRET, settings.REDDIT_USER_AGENT)
     if provider == "composite":
-        if not settings.X_BEARER_TOKEN or not settings.REDDIT_CLIENT_ID or not settings.REDDIT_CLIENT_SECRET:
-            return MockProvider()
-        return CompositeProvider(
-            XProvider(settings.X_BEARER_TOKEN),
-            RedditProvider(settings.REDDIT_CLIENT_ID, settings.REDDIT_CLIENT_SECRET, settings.REDDIT_USER_AGENT),
+        x_provider: TrendProvider = (
+            XProvider(settings.X_BEARER_TOKEN) if settings.X_BEARER_TOKEN else ScrapeXProvider()
         )
+        reddit_provider: TrendProvider = (
+            RedditProvider(settings.REDDIT_CLIENT_ID, settings.REDDIT_CLIENT_SECRET, settings.REDDIT_USER_AGENT)
+            if settings.REDDIT_CLIENT_ID and settings.REDDIT_CLIENT_SECRET
+            else PublicRedditProvider(settings.REDDIT_USER_AGENT)
+        )
+        return CompositeProvider(x_provider, reddit_provider)
     return MockProvider()

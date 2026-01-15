@@ -1,57 +1,125 @@
 let moodMap;
 let countryMarkers = {};
 let selectedCountry = null;
+let countryIndex = {};
+let countriesList = [];
+let geoLayer = null;
 
 function initMap() {
-    moodMap = new google.maps.Map(document.getElementById("map"), {
-        center: { lat: 20, lng: 0 },
-        zoom: 2,
+    moodMap = L.map("map", {
         minZoom: 2,
-        mapTypeControl: false,
-        streetViewControl: false,
+        worldCopyJump: true,
     });
 
-    moodMap.data.loadGeoJson("/static/data/world.geojson");
-    moodMap.data.setStyle({
-        fillColor: "#7aa6ff",
-        fillOpacity: 0.3,
-        strokeColor: "#2f4f6f",
-        strokeWeight: 1,
-    });
+    moodMap.fitWorld();
 
-    moodMap.data.addListener("mouseover", (event) => {
-        moodMap.data.overrideStyle(event.feature, { fillOpacity: 0.6 });
-    });
-    moodMap.data.addListener("mouseout", (event) => {
-        moodMap.data.revertStyle(event.feature);
-    });
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 6,
+        attribution: "&copy; OpenStreetMap contributors",
+    }).addTo(moodMap);
 
-    moodMap.data.addListener("click", (event) => {
-        const code = event.feature.getProperty("code") || event.feature.getProperty("id") || event.feature.getId();
-        if (code) {
-            selectCountry(code);
-        }
-    });
+    fetch("/static/data/world.geojson")
+        .then((response) => response.json())
+        .then((geojson) => {
+            geoLayer = L.geoJSON(geojson, {
+                style: {
+                    fillColor: "#7aa6ff",
+                    fillOpacity: 0.3,
+                    color: "#2f4f6f",
+                    weight: 1,
+                },
+                onEachFeature: (feature, layer) => {
+                    layer.on({
+                        mouseover: () => layer.setStyle({ fillOpacity: 0.6 }),
+                        mouseout: () => geoLayer && geoLayer.resetStyle(layer),
+                        click: () => {
+                            const code = feature.properties?.code || feature.id;
+                            if (code) {
+                                selectCountry(code);
+                            }
+                        },
+                    });
+                },
+            }).addTo(moodMap);
+            const bounds = geoLayer.getBounds();
+            if (bounds.isValid()) {
+                moodMap.fitBounds(bounds, { padding: [8, 8] });
+            }
+        });
 
     fetch("/api/countries/")
         .then((response) => response.json())
         .then((countries) => {
+            countriesList = countries;
             countries.forEach((country) => {
                 const emoji = country.latest_snapshot ? country.latest_snapshot.emoji : "😐";
-                const marker = new google.maps.Marker({
-                    position: { lat: country.centroid_lat, lng: country.centroid_lng },
-                    map: moodMap,
-                    label: {
-                        text: emoji,
-                        fontSize: "18px",
-                    },
-                });
-                marker.addListener("click", () => selectCountry(country.code));
+                const marker = L.marker([country.centroid_lat, country.centroid_lng], {
+                    icon: L.divIcon({
+                        className: "emoji-marker",
+                        html: emoji,
+                    }),
+                }).addTo(moodMap);
+                marker.on("click", () => selectCountry(country.code));
                 countryMarkers[country.code] = marker;
+                const normalizedName = country.name.toLowerCase();
+                countryIndex[normalizedName] = country.code;
+                countryIndex[country.code.toLowerCase()] = country.code;
             });
+            populateCountrySearch(countries);
         });
 
     connectMoodSocket();
+}
+
+function populateCountrySearch(countries) {
+    const datalist = document.getElementById("country-options");
+    if (!datalist) {
+        return;
+    }
+    datalist.innerHTML = "";
+    countries.forEach((country) => {
+        const option = document.createElement("option");
+        option.value = `${country.name} (${country.code})`;
+        datalist.appendChild(option);
+    });
+
+    const input = document.getElementById("country-search");
+    const button = document.getElementById("country-search-btn");
+    if (button) {
+        button.addEventListener("click", () => searchForCountry(input.value));
+    }
+    if (input) {
+        input.addEventListener("keydown", (event) => {
+            if (event.key === "Enter") {
+                event.preventDefault();
+                searchForCountry(input.value);
+            }
+        });
+    }
+}
+
+function searchForCountry(value) {
+    const query = value.trim();
+    if (!query) {
+        return;
+    }
+    const normalized = query.toLowerCase();
+    const codeMatch = query.match(/\(([^)]+)\)\s*$/);
+    const explicitCode = codeMatch ? codeMatch[1].trim().toLowerCase() : null;
+    let code = explicitCode ? countryIndex[explicitCode] : countryIndex[normalized];
+    if (!code) {
+        const match = countriesList.find((country) =>
+            country.name.toLowerCase().includes(normalized),
+        );
+        code = match ? match.code : null;
+    }
+    if (code) {
+        selectCountry(code);
+        const marker = countryMarkers[code];
+        if (marker) {
+            moodMap.setView(marker.getLatLng(), Math.max(moodMap.getZoom(), 4), { animate: true });
+        }
+    }
 }
 
 function selectCountry(code) {
@@ -76,7 +144,12 @@ function connectMoodSocket() {
         const data = JSON.parse(event.data);
         if (data.country && countryMarkers[data.country]) {
             const marker = countryMarkers[data.country];
-            marker.setLabel({ text: data.emoji || "😐", fontSize: "18px" });
+            marker.setIcon(
+                L.divIcon({
+                    className: "emoji-marker",
+                    html: data.emoji || "😐",
+                }),
+            );
         }
         if (selectedCountry && data.country === selectedCountry) {
             selectCountry(selectedCountry);
@@ -88,4 +161,4 @@ function connectMoodSocket() {
     };
 }
 
-window.initMap = initMap;
+document.addEventListener("DOMContentLoaded", initMap);

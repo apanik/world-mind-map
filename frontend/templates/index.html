@@ -2,7 +2,24 @@
 
 {% block content %}
 <div class="layout">
-    <div id="map" class="map"></div>
+    <div class="map-wrapper">
+        <div id="map" class="map"></div>
+        <div class="map-controls">
+            <label for="country-search">Search country</label>
+            <div class="map-controls-row">
+                <input
+                    id="country-search"
+                    name="country-search"
+                    type="text"
+                    list="country-options"
+                    placeholder="Start typing a country name or code"
+                    autocomplete="off"
+                />
+                <datalist id="country-options"></datalist>
+                <button id="country-search-btn" type="button">Go</button>
+            </div>
+        </div>
+    </div>
     <aside id="panel" class="panel">
         <div class="panel-placeholder">
             <h2>Select a country</h2>
@@ -11,5 +28,4 @@
     </aside>
 </div>
 <script src="/static/js/moods.js"></script>
-<script async defer src="https://maps.googleapis.com/maps/api/js?key={{ google_maps_api_key }}&callback=initMap"></script>
 {% endblock %}
