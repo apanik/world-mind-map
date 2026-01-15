@@ -104,21 +104,36 @@ class XProvider:
 
 
 class ScrapeXProvider:
-    SEARCH_URL = "https://r.jina.ai/http://x.com/search?q={query}&f=live"
+    SEARCH_URLS = (
+        "https://r.jina.ai/http://x.com/search?q={query}&f=live",
+        "https://r.jina.ai/http://nitter.net/search?f=tweets&q={query}",
+    )
 
     def _fetch_search(self, query: str) -> list[str]:
-        try:
-            response = requests.get(self.SEARCH_URL.format(query=requests.utils.quote(query)), timeout=10)
-            if response.status_code >= 400:
-                logger.warning("X scrape error: %s", response.status_code)
-                return []
-            return self._extract_posts(response.text)
-        except requests.RequestException as exc:
-            logger.exception("X scrape request failed: %s", exc)
-            return []
+        for url in self.SEARCH_URLS:
+            try:
+                response = requests.get(
+                    url.format(query=requests.utils.quote(query)),
+                    headers={"User-Agent": "global-mood-clock"},
+                    timeout=10,
+                )
+                if response.status_code == 451:
+                    logger.warning("X scrape unavailable (451); trying fallback source.")
+                    continue
+                if response.status_code >= 400:
+                    logger.warning("X scrape error: %s", response.status_code)
+                    continue
+                posts = self._extract_posts(response.text)
+                if posts:
+                    return posts
+            except requests.RequestException as exc:
+                logger.exception("X scrape request failed: %s", exc)
+        return []
 
     def _extract_posts(self, payload: str) -> list[str]:
         matches = re.findall(r'data-testid="tweetText".*?</div>', payload, re.DOTALL)
+        if not matches:
+            matches = re.findall(r'class="tweet-content[^"]*".*?</div>', payload, re.DOTALL)
         texts = []
         for block in matches:
             cleaned = re.sub(r"<[^>]+>", " ", block)
